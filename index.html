@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 4</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .box{
+            display:inline-block;
+            margin:10px;
+            vertical-align:top;
+        }
+        .box2{
+            display:inline-block;
+            margin:3px;
+        }
+        .container{
+            margin:0px;
+        }
+        .im{
+            margin: 10px;
+        }
+        .im2{
+            margin: 3px;
+        }
+    </style>
+</head>
+<body>
+
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <h1 style="text-align:center">Project 4</h1>
+        <h4 style="text-align:center">IMAGE WARPING and MOSAICING</h4>
+    <h2 style="text-align:center">Yuan-Hao Huang</h2>
+        <h4 style="text-align:center">yhhuang20@berkeley.edu</h4>
+
+    <h2>Overview</h2>
+    <p>
+        This project warps images into different perspectives. 
+        Combining with blending techniques, we can further build mosiacs that consist of multiple photos. 
+    </p>
+    
+    <h2>1. Shoot and digitize pictures</h2>
+    <p>Omitted. Please see the following sections. </p>
+
+    <h2>2. Recover homographies</h2>
+    <p>
+        First, label the two images using the provided <a href="https://cal-cs180.github.io/fa23/hw/proj3/tool.html">tool</a>. 
+        Suppose \((x, y, 1), (wX, wY, w)\) is a pair of corresponding points. 
+        We got the equation \(H\begin{bmatrix}x\\y\\1\end{bmatrix}=\begin{bmatrix}wX\\wY\\w\end{bmatrix}\), where \(H\) is the transformation matrix.
+        Let \(H=\begin{bmatrix}a&b&c\\d&e&f\\g&h&1\end{bmatrix}\). 
+        We can rewrite it as 
+        \[\begin{cases}
+            ax+by+c = wX\\
+            dx+ey+f = wY\\
+            gx+hy+1 = w
+        \end{cases}\]
+        Substituting the first two equations by the third one, we get
+        \[\begin{cases}
+            ax+by+c = (gx+hy+1)X\\
+            dx+ey+f = (gx+hy+1)Y
+        \end{cases}\]
+        Thus
+        \[\begin{cases}
+            ax+by+c-gxX-hyX = X\\
+            dx+ey+f-gxY-hyY = Y
+        \end{cases}\]
+        Since \(x, y, X, Y\) are constants, we have eight unknown variables. 
+        They can be solved with at least 4 pairs of corresponding points. 
+        If we have more than 4 pairs (over-determined), we can obtain a least-square error solution.  
+    </p>
+
+    <h2>3. Warp the images</h2>
+    <p>
+        As we did in project 3, the warped image is obtained by inverse mapping (\(H^{-1}\)) the coordinates and interpolating the nearby pixels. 
+        However, it is helpful to map the four corners into new coordinates first to determine the size and boundaries of the new image. 
+        With this information, we can create an array of coordinates in the region of the new image and then map them back to the original image to obtain the pixel values. 
+        Additionally, we can create a mask of the shape of the new image, which is helpful for the blending task later. 
+    </p>
+    <div class="container">
+        <div class="box">Original: <br><img src="rect/train/A.jpg" width="320" class="im"></div>
+        <div class="box">Rectified (the left side of Caltrain): <br><img src="rect/train/A_rect.jpg" width="400" class="im"></div>
+    </div>  
+    <div class="container">
+        <div class="box">Original: <br><img src="rect/flag/A.jpg" width="320" class="im"></div>
+        <div class="box">Rectified (the flag of Taiwan): <br><img src="rect/flag/A_rect.jpg" width="400" class="im"></div>
+    </div>  
+    <div class="container">
+        <div class="box">Original: <br><img src="rect/screen/A.jpg" width="320" class="im"></div>
+        <div class="box">Rectified (the monitor): <br><img src="rect/screen/A_rect.jpg" width="400" class="im"></div>
+    </div>
+    <p>
+        Note that if we warp too much, it would fail. 
+        In the image below, the top and bottom lines of the monitor intersect within the image. 
+        If we want the monitor to become a rectangle in the warped image, the resulting \(H\) will map the points in the right of the intersection to some coordinates \(\begin{bmatrix}\cdot\\\cdot\\w\end{bmatrix}\) where \(w\) is negative, which is impossible to transform into a valid coordinate. 
+    </p>
+    <img src="rect/screen_fail/A.jpg" width="400" class="im">
+
+
+    <h2>4. Blend images into a mosaic</h2>
+    <p>
+        First, we warp the second image so that its labels match the first image. 
+        We also build masks for both images to indicate their meaningful region (because many parts of the warped image is completely black), and the distance maps that indicate the distance of each pixel to the bounderies of the images.
+        Since the shape and size of the second image changes significantly after warping, we add zero paddings to the two images so that their shapes and positions align.
+        The same paddings also apply to the masks and distance maps. 
+        Then we separate the low and high frequency components of both images using a Gaussian filter. 
+        For the overlapped region, each pixel of the low frequency component is the weighted sum of two images, weighted by their distance map values. 
+        Each pixel of the high frequency component is either from image 1 or image 2, depending on which one has larger distance map value.
+        This 2-level Laplacian pyramid blending significantly improves the results, comparing to direct mixing (taking the average values of two images in the overlapped region).
+    </p>
+    <div class="container">
+        <div class="box">Original image 1 (left): <br><img src="mosaic/poster/A.jpg" width="500" class="im"></div>
+        <div class="box">Original image 2 (right): <br><img src="mosaic/poster/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 2 warped: <br><img src="mosaic/poster/imB_warped.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 1 padded: <br><img src="mosaic/poster/imA_padded2.jpg" width="260" class="im"></div>
+        <div class="box">Image 2 padded: <br><img src="mosaic/poster/imB_padded2.jpg" width="260" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 1 mask padded: <br><img src="mosaic/poster/mask_A_padded2.jpg" width="260" class="im"></div>
+        <div class="box">Image 1 distance map padded: <br><img src="mosaic/poster/distance_map_A_padded2.jpg" width="260" class="im"></div>
+        <div class="box">Image 2 mask padded: <br><img src="mosaic/poster/mask_B_padded2.jpg" width="260" class="im"></div>
+        <div class="box">Image 2 distance map padded: <br><img src="mosaic/poster/distance_map_B_padded2.jpg" width="260" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 1 low frequency weight: <br><img src="mosaic/poster/overlap_A_low_mask.jpg" width="260" class="im"></div>
+        <div class="box">Image 1 high frequency weight: <br><img src="mosaic/poster/overlap_A_high_mask.jpg" width="260" class="im"></div>
+        <div class="box">Image 2 low frequency weight: <br><img src="mosaic/poster/overlap_B_low_mask.jpg" width="260" class="im"></div>
+        <div class="box">Image 2 high frequency weight: <br><img src="mosaic/poster/overlap_B_high_mask.jpg" width="260" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 1 low frequency: <br><img src="mosaic/poster/imA_padded2_low.jpg" width="500" class="im"></div>
+        <div class="box">Image 1 high frequency: <br><img src="mosaic/poster/imA_padded2_high.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 2 low frequency: <br><img src="mosaic/poster/imB_padded2_low.jpg" width="500" class="im"></div>
+        <div class="box">Image 2 high frequency: <br><img src="mosaic/poster/imB_padded2_high.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 1 apply weight: <br><img src="mosaic/poster/mixA.jpg" width="500" class="im"></div>
+        <div class="box">Image 2 apply weight: <br><img src="mosaic/poster/mixB.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Mix result: <br><img src="mosaic/poster/mix_3.jpg" width="800" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Direct mixing (directly taking the average values of two images in the overlapped region), we can see obvious defects at boundaries: <br><img src="mosaic/poster/mix_direct.jpg" width="800" class="im"></div>
+    </div> 
+
+    <p>Here are some other examples:</p>
+    <div class="container">
+        <div class="box">Original image 1 (left): <br><img src="mosaic/kitchen/A.jpg" width="500" class="im"></div>
+        <div class="box">Original image 2 (right): <br><img src="mosaic/kitchen/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 2 warped: <br><img src="mosaic/kitchen/imB_warped.jpg" width="500" class="im"></div>
+    </div>
+    <div class="container">
+        <div class="box">Mix result: <br><img src="mosaic/kitchen/mix_3.jpg" width="800" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Original image 1 (right): <br><img src="mosaic/apartment/A.jpg" width="500" class="im"></div>
+        <div class="box">Original image 2 (left): <br><img src="mosaic/apartment/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Image 2 warped: <br><img src="mosaic/apartment/imB_warped.jpg" width="500" class="im"></div>
+    </div>
+    <div class="container">
+        <div class="box">Mix result: <br><img src="mosaic/apartment/mix_3.jpg" width="800" class="im"></div>
+    </div> 
+    
+
+
+
+
+
+
+    
+    
+    <h2>References</h2>
+        <h4>numpy</h4>
+            <a href="https://numpy.org/doc/2.0/reference/generated/numpy.linalg.lstsq.html">numpy.linalg.lstsq</a><br>
+            <a href="https://numpy.org/doc/2.0/reference/generated/numpy.min.html">numpy.min</a><br>
+            <a href="https://numpy.org/doc/2.0/reference/generated/numpy.linalg.inv.html">numpy.linalg.inv</a><br>
+            <a href="https://numpy.org/doc/2.0/reference/generated/numpy.round.html">numpy.round</a> <br>
+            <a href="https://numpy.org/devdocs/reference/generated/numpy.flip.html">numpy.flip</a> <br>
+            <a href="https://numpy.org/doc/2.0/reference/generated/numpy.greater_equal.html">numpy.greater_equal</a> <br>
+        <h4>stackoverflow</h4>
+            <a href="https://stackoverflow.com/questions/35751306/python-how-to-pad-numpy-array-with-zeros">python how to pad numpy array with zeros</a><br>
+    </body>
+</html>

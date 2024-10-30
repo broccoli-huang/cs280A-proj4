@@ -36,11 +36,14 @@
     <h2 style="text-align:center">Yuan-Hao Huang</h2>
         <h4 style="text-align:center">yhhuang20@berkeley.edu</h4>
 
-    <h2>Overview</h2>
+    <h1>Overview</h1>
     <p>
         This project warps images into different perspectives. 
         Combining with blending techniques, we can further build mosiacs that consist of multiple photos. 
+        In the second part, we implement the algorithm that automatically find corresponding points of two images. 
     </p>
+
+    <h1>Part A</h1>
     
     <h2>1. Shoot and digitize pictures</h2>
     <p>Omitted. Please see the following sections. </p>
@@ -173,7 +176,172 @@
     <div class="container">
         <div class="box">Mix result: <br><img src="mosaic/apartment/mix_3.jpg" width="800" class="im"></div>
     </div> 
+
+    <h1>Part B</h1>
+    <p>For this part, we demonstrate the intermediate steps using this set of images: </p>
+    <div class="container">
+        <div class="box"><img src="matching/poster/source/A.jpg" width="500" class="im"></div>
+        <div class="box"><img src="matching/poster/source/B.jpg" width="500" class="im"></div>
+    </div> 
+
+    <h2>1. Detecting corners</h2>
+    <p>
+        Harris corners are detected by the sample code. 
+    </p>
+    <div class="container">
+        <div class="box">Heat map of Harris response \(h\): <br><img src="matching/poster/intermediate/A_h.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/poster/intermediate/B_h.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Harris Corners (local max of \(h\)): <br><img src="matching/poster/intermediate/A_HarrisCorners.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/poster/intermediate/B_HarrisCorners.jpg" width="500" class="im"></div>
+    </div> 
+
+    <h2>2. ANMS</h2>
+    <p>
+        We first implement an array that contains \(r_i\) for all Harris corners, where \(r_i\) is defined in the paper as 
+        \[r_i = \min\limits_j |\mathbf{x}_i - \mathbf{x}_j| \text{, s.t. } f(\mathbf{x}_i) < c_{\text{robust}} f(\mathbf{x}_j), \mathbf{x}_j\in I\]
+        Intuitively, \(r_i\) is the distance to the nearest neighbor that has larger \(h\) value than itself. 
+        We then sort the Harris corners by \(r_i\) (decreasingly) and keep the first 1000 as the result of ANMS. 
+    </p>
+    <div class="container">
+        <div class="box">ANMS points: <br><img src="matching/poster/intermediate/A_ANMS_Points.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/poster/intermediate/B_ANMS_Points.jpg" width="500" class="im"></div>
+    </div> 
+    <p>
+        In contrast, if we simply pick the 1000 points with highest \(h\) values, it will look like this:     
+    </p>
+    <div class="container">
+        <div class="box">hMax points: <br><img src="matching/poster/intermediate/A_hMax_Points.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/poster/intermediate/B_hMax_Points.jpg" width="500" class="im"></div>
+    </div> 
+    <p>
+        Apparently, ANMS gives more evenly distributed results. 
+    </p>
     
+    <h2>3. Feature Descriptor</h2>
+    <p>
+        We sub-sample a 8x8 square from a 40x40 window within the blurred image. 
+        Then we take the z-score of each pixel within the 8x8 square. 
+        Some examples are visualized below, where the 8x8 square in the left is sampled from the 40x40 window (bounded by 4 red dots) in the blurred image in the middle, and in the right is the original (unblurred) image.
+    </p>
+    <div class="container">
+        <div class="box"><img src="matching/poster/intermediate/A_sq_15.jpg" width="100" class="im"></div>
+        <div class="box"><img src="matching/poster/intermediate/A_sq_15_original_blurred.jpg" width="250" class="im"></div>
+        <div class="box"><img src="matching/poster/intermediate/A_sq_15_original.jpg" width="250" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box"><img src="matching/poster/intermediate/A_sq_585.jpg" width="100" class="im"></div>
+        <div class="box"><img src="matching/poster/intermediate/A_sq_585_original_blurred.jpg" width="250" class="im"></div>
+        <div class="box"><img src="matching/poster/intermediate/A_sq_585_original.jpg" width="250" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box"><img src="matching/poster/intermediate/A_sq_591.jpg" width="100" class="im"></div>
+        <div class="box"><img src="matching/poster/intermediate/A_sq_591_original_blurred.jpg" width="250" class="im"></div>
+        <div class="box"><img src="matching/poster/intermediate/A_sq_591_original.jpg" width="250" class="im"></div>
+    </div> 
+
+    <h2>4. Matching Feature Descripters</h2>
+    <p>
+        We first compute the L2 distance of each pair of feature descriptors. 
+        This wouldn't take too long using the provided function. 
+        Then for each point in image A, we find its nearest neighbor and 2nd nearest neighbor within image B.
+        If the ratio of these two distances is smaller than certain threshold (set as 0.3), we believe the nearest neighbor is a correct match. 
+    </p>
+    <div class="container">
+        <div class="box">NN matched points: <br><img src="matching/poster/intermediate/A_NNmatched.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/poster/intermediate/B_NNmatched.jpg" width="500" class="im"></div>
+    </div> 
+
+    <h2>5. RANSAC</h2>
+    <p>
+        For many many many (50000) rounds, we first choose 4 random pair of matched points, compute their \(H\) matrix, and see if it is valid for other pairs (error<1.5). 
+        Only the largest set of pairs that agrees with a matrix is taken to the next step, others are removed. 
+    </p>
+    <div class="container">
+        <div class="box">RANSOC matched points: <br><img src="matching/poster/intermediate/A_RANSACmatched.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/poster/intermediate/B_RANSACmatched.jpg" width="500" class="im"></div>
+    </div> 
+    <p>
+        The figures below summarize the corners matching process. <br>
+        After ANMS: green+blue+red <br>
+        After nearest neighbor: green+blue <br>
+        After RANSAC: green
+    </p>
+    <div class="container">
+        <div class="box"><img src="matching/poster/intermediate/A_allmarks.jpg" width="500" class="im"></div>
+        <div class="box"><img src="matching/poster/intermediate/B_allmarks.jpg" width="500" class="im"></div>
+    </div> 
+
+    <h2>6. Producing Mosaic </h2>
+    <p>
+        The approach is explained in Part A. 
+    </p>
+    <div class="container">
+        <div class="box">Original images: <br><img src="matching/poster/source/A.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/poster/source/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Automatic matching result: <br><img src="matching/poster/source/AB.jpg" width="500" class="im"></div>
+        <div class="box">Manual labelling result: <br><img src="matching/poster/manual.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Original images: <br><img src="matching/kitchen/source/A.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/kitchen/source/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Automatic matching result: <br><img src="matching/kitchen/source/AB.jpg" width="500" class="im"></div>
+        <div class="box">Manual labelling result: <br><img src="matching/kitchen/manual.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Original images: <br><img src="matching/apartment/source/A.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/apartment/source/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Automatic matching result: <br><img src="matching/apartment/source/AB.jpg" width="500" class="im"></div>
+        <div class="box">Manual labelling result: <br><img src="matching/apartment/manual.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Original images: <br><img src="matching/bed/source/A.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/bed/source/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Automatic matching result: <br><img src="matching/bed/source/AB.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Original images: <br><img src="matching/field/source/A.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/field/source/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Automatic matching result (some ghost exist because players are moving): <br><img src="matching/field/source/AB.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Original images: <br><img src="matching/field_move/source/A.jpg" width="500" class="im"></div>
+        <div class="box"><br><img src="matching/field_move/source/B.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Automatic matching result (some ghost exist because players are moving): <br><img src="matching/field_move/source/AB.jpg" width="500" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Original images: <br><img src="matching/map/source/A.jpg" width="250" class="im"></div>
+        <div class="box"><br><img src="matching/map/source/B.jpg" width="250" class="im"></div>
+    </div> 
+    <div class="container">
+        <div class="box">Automatic matching result: <br><img src="matching/map/source/AB.jpg" width="250" class="im"></div>
+    </div> 
+
+    <h1>What have you learned?</h1>
+    <p>
+        I was surprise that the algorithm actually works. 
+        When I learned it in the course, I felt like it makes a little sense but would definitely not work in practice because there are so many factors, while the algorithm just assume some ideal circumstances. 
+        This is quite true actually. 
+        Each component cannot give promising results individually. 
+        However, by aggregating them all together, we are able to make the results more "pure". 
+        The process of selecting corresponding points is kind of like the Swiss Cheese model. 
+        Going through Harris corners -> ANMS -> nearest neighbor -> RANSOC is like passing through layers of cheese. 
+        A single layer of cheese, or algorithm, cannot give results that we can rely on. 
+        However, if a pair of points passes through all layers of cheese, then it is very likely to be valid. 
+    </p>
 
 
 
@@ -190,7 +358,22 @@
             <a href="https://numpy.org/doc/2.0/reference/generated/numpy.round.html">numpy.round</a> <br>
             <a href="https://numpy.org/devdocs/reference/generated/numpy.flip.html">numpy.flip</a> <br>
             <a href="https://numpy.org/doc/2.0/reference/generated/numpy.greater_equal.html">numpy.greater_equal</a> <br>
+            <a href="https://numpy.org/devdocs/reference/generated/numpy.copy.html">numpy.copy</a><br>
+            <a href="https://numpy.org/devdocs/reference/generated/numpy.median.html">numpy.median</a><br>
+            <a href="https://numpy.org/devdocs/reference/generated/numpy.argsort.html">numpy.argsort</a><br>
+            <a href="https://numpy.org/devdocs/reference/generated/numpy.argmin.html">numpy.argmin</a> <br>
+            <a href="https://numpy.org/devdocs/reference/generated/numpy.take.html">numpy.take</a> <br>
+            <a href="https://numpy.org/doc/stable/reference/generated/numpy.sum.html">numpy.sum</a> <br>
+        <h4>scipy</h4>
+            <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.zscore.html">stats.zscore</a><br>
         <h4>stackoverflow</h4>
             <a href="https://stackoverflow.com/questions/35751306/python-how-to-pad-numpy-array-with-zeros">python how to pad numpy array with zeros</a><br>
+            <a href="https://stackoverflow.com/questions/7761393/how-to-modify-a-2d-numpy-array-at-specific-locations-without-a-loop">how to modify a 2D numpy array at specific locations without a loop?</a><br>
+            <a href="https://stackoverflow.com/questions/28430904/set-numpy-array-elements-to-zero-if-they-are-above-a-specific-threshold">Set numpy array elements to zero if they are above a specific threshold</a><br>
+            <a href="https://stackoverflow.com/questions/39870642/how-to-plot-a-high-resolution-graph">How to plot a high resolution graph</a><br>
+            <a href="https://stackoverflow.com/questions/33282368/plotting-a-2d-heatmap">Plotting a 2D heatmap</a><br>
+            <a href="https://stackoverflow.com/questions/35681054/how-do-i-extract-a-sub-array-from-a-numpy-2d-array">How do I extract a sub-array from a numpy 2d array? [duplicate]</a><br>
+            <a href="https://stackoverflow.com/questions/48121916/numpy-resize-rescale-image">Numpy Resize/Rescale Image</a><br>
+            <a href="https://stackoverflow.com/questions/9755538/how-do-i-create-a-list-of-random-numbers-without-duplicates">How do I create a list of random numbers without duplicates?</a><br>
     </body>
 </html>
